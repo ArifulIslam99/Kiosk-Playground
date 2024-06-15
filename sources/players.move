@@ -5,7 +5,7 @@ module playermarket::players{
     use sui::transfer_policy::{Self, TransferPolicy, TransferPolicyCap};
     use std::string::{String, utf8};
     use playermarket::admin::AdminCap;
-    use sui::coin::{Coin};
+    use sui::coin;
     use sui::sui::SUI;
     public struct PLAYERS has drop {}
 
@@ -36,9 +36,9 @@ module playermarket::players{
     fun init(witness: PLAYERS, ctx: &mut TxContext) {
         let publisher = package::claim(witness, ctx);
         let mut display = display::new<Player>(&publisher, ctx);
-        display::add<Player>(&mut display, utf8(b"name"), utf8(b"{name}"));
-        display::add<Player>(&mut display, utf8(b"image_url"), utf8(b"{url}"));
-        display::add<Player>(&mut display, utf8(b"description"), utf8(b"{Top European Player Animate Nft to trade and Supply!}"));
+        display::add<Player>(&mut display, utf8(b"name"), utf8(b"Euro2024"));
+        display::add<Player>(&mut display, utf8(b"image_url"), utf8(b"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRJXfhrKW_PFiWcsgu5J1oKzYYHLD1Nf9AX9g&s"));
+        display::add<Player>(&mut display, utf8(b"description"), utf8(b"Top European Player Animate Nft to trade and Supply!"));
         display::update_version<Player>(&mut display);
         let (kiosk, kiosk_owner_cap) = kiosk::new(ctx);
         let (transfer_policy, transfer_policy_cap) = transfer_policy::new<Player>(&publisher, ctx);
@@ -81,23 +81,21 @@ module playermarket::players{
         _cap: &MintCap,
         central_policy: &CentralPolicy,
         kiosk: &mut Kiosk,
-        player: Player,
-        price: u64
+        player: Player
     ) {
-        kiosk::place_and_list<Player>(kiosk, &central_policy.kiosk_owner_cap, player, price);
+        kiosk::place_and_list<Player>(kiosk, &central_policy.kiosk_owner_cap, player, 0);
     }
 
 
     public entry fun buy_from_kiosk(
         central_policy: &CentralPolicy,
         kiosk: &mut Kiosk,
-        player_id: ID,
-        payment: Coin<SUI>
+        player_id: address,
+        ctx: &mut TxContext
     ){
-        let (player, transfer_req) = kiosk::purchase<Player>(kiosk, player_id, payment);
+        let (player, transfer_req) = kiosk::purchase<Player>(kiosk,  object::id_from_address(player_id), coin::zero<SUI>(ctx));
         transfer_policy::confirm_request<Player>(&central_policy.transfer_policy, transfer_req);
-        let Player {id, name: _, url: _ } =  player;
-        object::delete(id);
+        transfer::public_transfer(player, tx_context::sender(ctx));
     }
 
 }
