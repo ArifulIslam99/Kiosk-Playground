@@ -3,7 +3,6 @@ module playermarket::players{
     use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use sui::transfer_policy::{Self, TransferPolicy, TransferPolicyCap};
     use std::string::String;
-    use std::vector;
     use playermarket::admin::AdminCap;
     
     public struct PLAYERS has drop {}
@@ -25,7 +24,7 @@ module playermarket::players{
         id: UID
     }
 
-
+    #[allow(lint(share_owned))]
     fun init(witness: PLAYERS, ctx: &mut TxContext) {
         let publisher = package::claim(witness, ctx);
         let (kiosk, kiosk_owner_cap) = kiosk::new(ctx);
@@ -39,6 +38,31 @@ module playermarket::players{
         transfer::share_object(central_policy);
         transfer::public_share_object(kiosk);
         transfer::public_transfer(publisher, tx_context::sender(ctx));
+    }
+
+
+    public fun send_mint_cap(_cap: &AdminCap, recipient: address, ctx: &mut TxContext) {
+        transfer::transfer(MintCap{
+            id: object::new(ctx)
+        }, recipient)
+    }
+
+    public fun mint_player(_cap: &MintCap, name: String, url: String, ctx: &mut TxContext): Player {
+        Player {
+            id: object::new(ctx),
+            name,
+            url
+        }
+    }
+
+    public fun place_and_list_to_kiosk(
+        _cap: &MintCap,
+        central_policy: &CentralPolicy,
+        kiosk: &mut Kiosk,
+        player: Player,
+        price: u64
+    ) {
+        kiosk::place_and_list<Player>(kiosk, &central_policy.kiosk_owner_cap, player, price);
     }
 
 
