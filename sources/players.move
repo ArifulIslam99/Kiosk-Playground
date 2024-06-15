@@ -1,10 +1,12 @@
 module playermarket::players{
     use sui::package;
+    use sui::display; 
     use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use sui::transfer_policy::{Self, TransferPolicy, TransferPolicyCap};
-    use std::string::String;
+    use std::string::{String, utf8};
     use playermarket::admin::AdminCap;
-    
+    use sui::coin::{Coin};
+    use sui::sui::SUI;
     public struct PLAYERS has drop {}
 
     public struct Player has key, store {
@@ -20,6 +22,12 @@ module playermarket::players{
         transfer_policy_cap: TransferPolicyCap<Player>
     }
 
+    public struct CollectionInfo has store, key {
+        id: UID,
+        publisher: package::Publisher,
+        display: display::Display<Player>
+        }
+
     public struct MintCap has key {
         id: UID
     }
@@ -27,6 +35,11 @@ module playermarket::players{
     #[allow(lint(share_owned))]
     fun init(witness: PLAYERS, ctx: &mut TxContext) {
         let publisher = package::claim(witness, ctx);
+        let mut display = display::new<Player>(&publisher, ctx);
+        display::add<Player>(&mut display, utf8(b"name"), utf8(b"{name}"));
+        display::add<Player>(&mut display, utf8(b"image_url"), utf8(b"{url}"));
+        display::add<Player>(&mut display, utf8(b"description"), utf8(b"{Top European Player Animate Nft to trade and Supply!}"));
+        display::update_version<Player>(&mut display);
         let (kiosk, kiosk_owner_cap) = kiosk::new(ctx);
         let (transfer_policy, transfer_policy_cap) = transfer_policy::new<Player>(&publisher, ctx);
         let central_policy = CentralPolicy {
@@ -35,27 +48,36 @@ module playermarket::players{
             transfer_policy,
             transfer_policy_cap
         };
+
+        let collection_info = CollectionInfo {
+            id: object::new(ctx),
+            publisher,
+            display,
+        };
+        transfer::public_transfer(collection_info, tx_context::sender(ctx));
         transfer::share_object(central_policy);
         transfer::public_share_object(kiosk);
-        transfer::public_transfer(publisher, tx_context::sender(ctx));
+        // transfer::public_transfer(publisher, tx_context::sender(ctx));
     }
 
 
-    public fun send_mint_cap(_cap: &AdminCap, recipient: address, ctx: &mut TxContext) {
+    public entry fun send_mint_cap(_cap: &AdminCap, recipient: address, ctx: &mut TxContext) {
         transfer::transfer(MintCap{
             id: object::new(ctx)
         }, recipient)
     }
 
-    public fun mint_player(_cap: &MintCap, name: String, url: String, ctx: &mut TxContext): Player {
-        Player {
+    public entry fun mint_player(_cap: &MintCap, name: String, url: String, ctx: &mut TxContext) {
+        let player = Player {
             id: object::new(ctx),
             name,
             url
-        }
+        };
+
+        transfer::public_transfer(player, tx_context::sender(ctx));
     }
 
-    public fun place_and_list_to_kiosk(
+    public entry fun place_and_list_to_kiosk(
         _cap: &MintCap,
         central_policy: &CentralPolicy,
         kiosk: &mut Kiosk,
@@ -65,5 +87,17 @@ module playermarket::players{
         kiosk::place_and_list<Player>(kiosk, &central_policy.kiosk_owner_cap, player, price);
     }
 
+
+    public entry fun buy_from_kiosk(
+        central_policy: &CentralPolicy,
+        kiosk: &mut Kiosk,
+        player_id: ID,
+        payment: Coin<SUI>
+    ){
+        let (player, transfer_req) = kiosk::purchase<Player>(kiosk, player_id, payment);
+        transfer_policy::confirm_request<Player>(&central_policy.transfer_policy, transfer_req);
+        let Player {id, name: _, url: _ } =  player;
+        object::delete(id);
+    }
 
 }
