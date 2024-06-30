@@ -28,7 +28,7 @@ module playermarket::royalty_policy {
     }
 
     public fun calculate_fee(amount_bp: u16, paid: u64): u64 {
-        (paid * (amount_bp as u64) / 10000) as u64
+        (((paid as u128) * (amount_bp as u128) / 10_000) as u64)
     }
 
     public fun set<Player>(
@@ -61,7 +61,6 @@ module playermarket::royalty_policy {
             transfer::public_transfer(fee, config.beneficiary);
         };
         policy::add_receipt(Rule {}, request)
-
     }
 
     #[allow(lint(self_transfer, share_owned))]
