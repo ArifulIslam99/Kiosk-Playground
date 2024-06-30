@@ -8,7 +8,8 @@ module playermarket::players{
     use sui::coin;
     use sui::sui::SUI;
     public struct PLAYERS has drop {}
-
+    use playermarket::royalty_policy::new_royalty_policy;
+    const BENEFICIARY: address = @0x8f6ff638438081e30f3c823e83778118947e617f9d8ab08eca8613d724d77335;
     public struct Player has key, store {
         id: UID,
         name: String,
@@ -42,6 +43,10 @@ module playermarket::players{
         display::update_version<Player>(&mut display);
         let (kiosk, kiosk_owner_cap) = kiosk::new(ctx);
         let (transfer_policy, transfer_policy_cap) = transfer_policy::new<Player>(&publisher, ctx);
+
+        //Set 5% royalty
+        new_royalty_policy<Player>(&publisher, 500, BENEFICIARY, ctx);
+
         let central_policy = CentralPolicy {
             id: object::new(ctx),
             kiosk_owner_cap,
