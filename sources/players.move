@@ -81,9 +81,20 @@ module playermarket::players{
         _cap: &MintCap,
         central_policy: &CentralPolicy,
         kiosk: &mut Kiosk,
-        player: Player
-    ) {
-        kiosk::place_and_list<Player>(kiosk, &central_policy.kiosk_owner_cap, player, 0);
+        player: Player,
+        price: u64
+    ) { 
+        let mist = 1000000000;
+        kiosk::place_and_list<Player>(kiosk, &central_policy.kiosk_owner_cap, player, price * mist);
+    }
+
+
+    public entry fun remove_from_kiosk_list(
+        kiosk: &mut Kiosk,
+        central_policy: &CentralPolicy,
+        player_id: address,
+    ){
+        kiosk::delist<Player>(kiosk, &central_policy.kiosk_owner_cap, object::id_from_address(player_id));
     }
 
 
@@ -91,11 +102,22 @@ module playermarket::players{
         central_policy: &CentralPolicy,
         kiosk: &mut Kiosk,
         player_id: address,
+        payment: coin::Coin<SUI>,
         ctx: &mut TxContext
     ){
-        let (player, transfer_req) = kiosk::purchase<Player>(kiosk,  object::id_from_address(player_id), coin::zero<SUI>(ctx));
+        let (player, transfer_req) = kiosk::purchase<Player>(kiosk,  object::id_from_address(player_id),  payment);
         transfer_policy::confirm_request<Player>(&central_policy.transfer_policy, transfer_req);
         transfer::public_transfer(player, tx_context::sender(ctx));
+    }
+
+    public entry fun get_profit_from_sell(
+        central_policy: &CentralPolicy,
+        kiosk: &mut Kiosk,
+        amount: Option<u64>,
+        ctx: &mut TxContext
+    ){
+        let (profit) = kiosk::withdraw(kiosk, &central_policy.kiosk_owner_cap, amount, ctx);
+        transfer::public_transfer(profit, tx_context::sender(ctx));
     }
 
 }
