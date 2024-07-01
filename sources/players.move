@@ -4,11 +4,12 @@ module playermarket::players{
     use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use sui::transfer_policy::{Self, TransferPolicy, TransferPolicyCap};
     use std::string::{String, utf8};
-    use playermarket::admin::AdminCap;
+    // use playermarket::admin::AdminCap;
     use sui::coin;
     use sui::sui::SUI;
     public struct PLAYERS has drop {}
-    use playermarket::royalty_policy::new_royalty_policy;
+    use playermarket::royalty_policy::{Self, new_royalty_policy};
+
     const BENEFICIARY: address = @0x8f6ff638438081e30f3c823e83778118947e617f9d8ab08eca8613d724d77335;
     public struct Player has key, store {
         id: UID,
@@ -42,10 +43,10 @@ module playermarket::players{
         display::add<Player>(&mut display, utf8(b"description"), utf8(b"Top European Player Animate Nft to trade and Supply!"));
         display::update_version<Player>(&mut display);
         let (kiosk, kiosk_owner_cap) = kiosk::new(ctx);
-        let (transfer_policy, transfer_policy_cap) = transfer_policy::new<Player>(&publisher, ctx);
+        let (mut transfer_policy, transfer_policy_cap) = transfer_policy::new<Player>(&publisher, ctx);
 
         //Set 5% royalty
-        new_royalty_policy<Player>(&publisher, 500, BENEFICIARY, ctx);
+        new_royalty_policy<Player>(&mut transfer_policy, &transfer_policy_cap, 500, BENEFICIARY);
 
         let central_policy = CentralPolicy {
             id: object::new(ctx),
@@ -66,13 +67,8 @@ module playermarket::players{
     }
 
 
-    public entry fun send_mint_cap(_cap: &AdminCap, recipient: address, ctx: &mut TxContext) {
-        transfer::transfer(MintCap{
-            id: object::new(ctx)
-        }, recipient)
-    }
 
-    public entry fun mint_player(_cap: &MintCap, name: String, url: String, ctx: &mut TxContext) {
+    public entry fun mint_player(name: String, url: String, ctx: &mut TxContext) {
         let player = Player {
             id: object::new(ctx),
             name,
@@ -83,7 +79,6 @@ module playermarket::players{
     }
 
     public entry fun place_and_list_to_kiosk(
-        _cap: &MintCap,
         central_policy: &CentralPolicy,
         kiosk: &mut Kiosk,
         player: Player,
@@ -104,16 +99,20 @@ module playermarket::players{
 
 
     public entry fun buy_from_kiosk(
-        central_policy: &CentralPolicy,
+        central_policy: &mut CentralPolicy,
         kiosk: &mut Kiosk,
         player_id: address,
-        payment: coin::Coin<SUI>,
+        payment: &mut coin::Coin<SUI>,
+        payment2: coin::Coin<SUI>,
         ctx: &mut TxContext
     ){
-        let (player, transfer_req) = kiosk::purchase<Player>(kiosk,  object::id_from_address(player_id),  payment);
+        let (player,mut transfer_req) = kiosk::purchase<Player>(kiosk,  object::id_from_address(player_id), payment2);
+        royalty_policy::pay(&mut central_policy.transfer_policy, &mut transfer_req, payment, ctx);
         transfer_policy::confirm_request<Player>(&central_policy.transfer_policy, transfer_req);
         transfer::public_transfer(player, tx_context::sender(ctx));
     }
+
+
 
     public entry fun get_profit_from_sell(
         central_policy: &CentralPolicy,
